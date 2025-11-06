@@ -18,6 +18,9 @@ license = "Apache-2.0"
 modular-bitfield = "0.11.2"
 modular-bitfield-to-value = { version = "*", git = "https://github.com/hacknus/modular-bitfield-to-value"}
 
+[dev-dependencies]
+linux-embedded-hal = "0.4.0"
+
 [profile.dev]
 incremental = false
 codegen-units = 1
