@@ -11,6 +11,8 @@
 use std::fmt;
 use std::io;
 
+use linux_embedded_hal::spidev;
+
 use crate::registers::*;
 
 pub mod registers;
@@ -49,8 +51,8 @@ impl fmt::Display for DataPacket {
 }
 
 /// TMC5160 driver
-pub struct Tmc5160<SPI> {
-    spi: SPI,
+pub struct Tmc5160 {
+    spi: linux_embedded_hal::spidev::Spidev,
     /// the max velocity that is set
     pub v_max: f32,
     /// status register of the driver
@@ -85,12 +87,9 @@ pub struct Tmc5160<SPI> {
     pub pwm_conf: PwmConf,
 }
 
-impl<SPI> Tmc5160<SPI>
-where
-    SPI: io::Read + io::Write,
-{
+impl Tmc5160 {
     /// Create a new driver from a SPI peripheral and a NCS pin
-    pub fn new(spi: SPI) -> Self {
+    pub fn new(spi: linux_embedded_hal::spidev::Spidev) -> Self {
         Tmc5160 {
             spi,
             v_max: 0.0,
@@ -151,26 +150,25 @@ where
     where
         T: Address + Copy,
     {
-        let buf_tx = [reg.addr(), 0, 0, 0, 0];
-        let mut buf_rx = [0u8; 5];
+        let mut buf = [reg.addr(), 0, 0, 0, 0];
 
-        self.spi.write_all(&buf_tx)?;
-        self.spi.read_exact(&mut buf_rx)?;
+        let mut packet = spidev::SpidevTransfer::read_write_in_place(&mut buf);
+        self.spi.transfer(&mut packet)?;
 
         let mut ret_val: [u8; 4] = [0; 4];
 
         for i in 0..4 {
-            ret_val[i] = buf_rx[i + 1];
+            ret_val[i] = buf[i + 1];
         }
 
         let mut debug_val: [u8; 5] = [0; 5];
 
         for i in 0..5 {
-            debug_val[i] = buf_rx[i];
+            debug_val[i] = buf[i];
         }
 
         Ok(DataPacket {
-            status: SpiStatus::from_bytes([buf_rx[0]]),
+            status: SpiStatus::from_bytes([buf[0]]),
             data: u32::from_be_bytes(ret_val),
             debug: debug_val,
         })
@@ -181,22 +179,21 @@ where
     where
         T: Address + Copy,
     {
-        let buf_tx = [reg.addr() | 0x80, val[0], val[1], val[2], val[3]];
-        let mut buf_rx = [0u8; 5];
+        let mut buf = [reg.addr() | 0x80, val[0], val[1], val[2], val[3]];
 
-        let debug_val = buf_tx.clone();
+        let debug_val = buf.clone();
 
-        self.spi.write_all(&buf_tx)?;
-        self.spi.read_exact(&mut buf_rx)?;
+        let mut packet = spidev::SpidevTransfer::read_write_in_place(&mut buf);
+        self.spi.transfer(&mut packet)?;
 
         let mut ret_val: [u8; 4] = [0; 4];
 
         for i in 0..4 {
-            ret_val[i] = buf_rx[i + 1];
+            ret_val[i] = buf[i + 1];
         }
 
         Ok(DataPacket {
-            status: SpiStatus::from_bytes([buf_rx[0]]),
+            status: SpiStatus::from_bytes([buf[0]]),
             data: u32::from_be_bytes(ret_val),
             debug: debug_val,
         })
